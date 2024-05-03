@@ -23,7 +23,7 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.os }}-${{ matrix.pm }}
       cancel-in-progress: true
     name: ${{ format('E2E ({0} on {1})', matrix.pm, matrix.os) }}
-    if: ${{ github.repository_owner == 'cloudflare' && github.event.pull_request.user.login != 'dependabot[bot]' && github.actor != 'Wrangler automated PR updater' }}
+    if: ${{ github.repository_owner == 'cloudflare' && github.event.pull_request.user.login != 'dependabot[bot]' }}
     strategy:
       fail-fast: false
       matrix:
@@ -54,3 +54,4 @@ jobs:
           quarantine: false
           accountId: ${{ secrets.C3_TEST_CLOUDFLARE_ACCOUNT_ID }}
           apiToken: ${{ secrets.C3_TEST_CLOUDFLARE_API_TOKEN }}
+          saveDiffs: ${{ github.head_ref == 'changeset-release/main' && matrix.pm == 'pnpm' && matrix.os == 'ubuntu-latest'}}
