@@ -240,7 +240,7 @@ function fixupDurableObjectBindingsToSelf(
 
 type ProjectWorkers = [
 	runnerWorker: WorkerOptions,
-	...auxiliaryWorkers: WorkerOptions[]
+	...auxiliaryWorkers: WorkerOptions[],
 ];
 
 const SELF_NAME_BINDING = "__VITEST_POOL_WORKERS_SELF_NAME";
@@ -509,6 +509,7 @@ function buildProjectMiniflareOptions(
 		return {
 			...SHARED_MINIFLARE_OPTIONS,
 			unsafeModuleFallbackService: moduleFallbackService,
+			// @ts-expect-error SUNILFIX
 			workers: [runnerWorker, ABORT_ALL_WORKER, ...auxiliaryWorkers],
 		};
 	} else {
@@ -529,6 +530,7 @@ function buildProjectMiniflareOptions(
 		return {
 			...SHARED_MINIFLARE_OPTIONS,
 			unsafeModuleFallbackService: moduleFallbackService,
+			// @ts-expect-error SUNILFIX
 			workers: [...testWorkers, ABORT_ALL_WORKER, ...auxiliaryWorkers],
 		};
 	}

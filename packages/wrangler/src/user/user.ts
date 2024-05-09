@@ -410,12 +410,12 @@ function getAuthTokens(config?: UserAuthConfig): AuthTokens | undefined {
 				refreshToken: { value: refresh_token ?? "" },
 				scopes: scopes as Scope[],
 			};
-		} else if (api_token) {
-			logger.warn(
-				"It looks like you have used Wrangler v1's `config` command to login with an API token.\n" +
-					"This is no longer supported in the current version of Wrangler.\n" +
-					"If you wish to authenticate via an API token then please set the `CLOUDFLARE_API_TOKEN` environment variable."
-			);
+		} else if (api_token && !process.env.CLOUDFLARE_API_TOKEN) {
+			// logger.warn(
+			// 	"It looks like you have used Wrangler v1's `config` command to login with an API token.\n" +
+			// 		"This is no longer supported in the current version of Wrangler.\n" +
+			// 		"If you wish to authenticate via an API token then please set the `CLOUDFLARE_API_TOKEN` environment variable."
+			// );
 			return { apiToken: api_token };
 		}
 	} catch {
