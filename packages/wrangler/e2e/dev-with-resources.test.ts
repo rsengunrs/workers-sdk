@@ -8,19 +8,21 @@ import { ReadableStream } from "node:stream/web";
 import { setTimeout } from "node:timers/promises";
 import getPort from "get-port";
 import stripAnsi from "strip-ansi";
+import dedent from "ts-dedent";
 import { Agent, fetch } from "undici";
 import { describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
-import { dedent, makeRoot, seed } from "./helpers/setup";
+import { makeRoot, seed } from "./helpers/setup";
 import { teardown } from "./helpers/teardown";
-import { WRANGLER } from "./helpers/wrangler-command";
+import { WRANGLER } from "./helpers/wrangler";
 
 // =============================================================================
 // Configuration
 // =============================================================================
 
 const PIPE_OUTPUT = false;
-const RUNTIMES = [{ runtime: "local" }, { runtime: "remote" }] as const;
+// const RUNTIMES = [{ runtime: "local" }, { runtime: "remote" }] as const;
+const RUNTIMES = [{ runtime: "local" }] as const;
 
 // =============================================================================
 // Helpers

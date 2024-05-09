@@ -1,9 +1,9 @@
+import assert from "node:assert";
 import { afterEach } from "vitest";
 
 const teardownCallbacks: (() => unknown | Promise<unknown>)[] = [];
 export function teardown(callback: () => unknown | Promise<unknown>) {
-	// `unshift()` so teardown callbacks executed in reverse
-	teardownCallbacks.unshift(callback);
+	teardownCallbacks.push(callback);
 }
 
 function getErrorStack(e: unknown): string {
@@ -21,13 +21,16 @@ function getErrorStack(e: unknown): string {
 
 afterEach(async () => {
 	const errors: unknown[] = [];
-	for (const callback of teardownCallbacks.splice(0)) {
+	while (teardownCallbacks.length > 0) {
+		const callback = teardownCallbacks.pop();
+		assert(callback);
 		try {
 			await callback();
 		} catch (error) {
 			errors.push(error);
 		}
 	}
+
 	if (errors.length > 0)
 		throw new AggregateError(
 			errors,
