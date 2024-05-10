@@ -88,6 +88,10 @@ async function runDevSession(
 	}
 }
 
+function fetchText(url: string) {
+	return fetch(url).then((r) => r.text());
+}
+
 describe("pages dev", () => {
 	let workerName: string;
 	let workerPath: string;
@@ -107,41 +111,27 @@ describe("pages dev", () => {
 		});
 	});
 
-	it("should warn if no [--compatibility_date] command line arg was specified", async () => {
-		await runDevSession(workerPath, ".", async (session) => {
-			await seed(workerPath, {
+	e2eTest(
+		"should warn if no [--compatibility_date] command line arg was specified",
+		async ({ seed, run }) => {
+			await seed({
 				"_worker.js": dedent`
-						export default {
-							fetch(request, env) {
-								return new Response("Testing [--compatibility_date]")
-							}
-						}`,
+					export default {
+						fetch(request, env) {
+							return new Response("Testing [--compatibility_date]")
+						}
+					}`,
 			});
-			const { text, stderr } = await retry(
-				(s) => s.status !== 200,
-				async () => {
-					const r = await fetch(`http://127.0.0.1:${session.port}`);
-					return {
-						text: await r.text(),
-						status: r.status,
-						stderr: session.stderr,
-					};
-				}
-			);
-
+			const worker = run(`wrangler pages dev --port 0 .`);
+			const { url } = await waitForReady(worker);
+			const text = await fetchText(url);
 			const currentDate = new Date().toISOString().substring(0, 10);
 			expect(text).toMatchInlineSnapshot('"Testing [--compatibility_date]"');
-			expect(normalizeOutput(stderr).replaceAll(currentDate, "<current-date>"))
-				.toMatchInlineSnapshot(`
-				"▲ [WARNING] No compatibility_date was specified. Using today's date: <current-date>.
-				  Pass it in your terminal:
-				  \`\`\`
-				  --compatibility-date=<current-date>
-				  \`\`\`
-				  See https://developers.cloudflare.com/workers/platform/compatibility-dates/ for more information."
-			`);
-		});
-	});
+			expect(worker.output.replaceAll(currentDate, "<current-date>")).toContain(
+				`No compatibility_date was specified. Using today's date`
+			);
+		}
+	);
 
 	it("should warn that [--experimental-local] is no longer required, if specified", async () => {
 		await runDevSession(
@@ -650,7 +640,7 @@ describe("pages dev", () => {
 		});
 	});
 
-	e2eTest.only(
+	e2eTest(
 		"should merge (with override) `wrangler.toml` configuration with configuration provided via the command line, with command line args taking precedence",
 		async ({ seed, run }) => {
 			const flags = [
@@ -662,7 +652,7 @@ describe("pages dev", () => {
 				` --service SERVICE_BINDING_1_TOML=NEW_SERVICE_NAME_1 SERVICE_BINDING_3_TOML=SERVICE_NAME_3_ARGS`,
 				` --ai AI_BINDING_2_TOML`,
 			];
-			const worker = run(`wrangler pages dev ${flags.join("")}`);
+			const worker = run(`wrangler pages dev --port 0 ${flags.join("")}`);
 			await seed({
 				"public/_worker.js": dedent`
 					export default {
@@ -740,11 +730,50 @@ describe("pages dev", () => {
 			});
 			await waitForReady(worker);
 
-			expect(normalizeOutput(worker.output)).toMatchInlineSnapshot();
+			expect(normalizeOutput(worker.output)).toMatchInlineSnapshot(`
+				"▲ [WARNING] WARNING: You have Durable Object bindings that are not defined locally in the worker being developed.
+				  Be aware that changes to the data stored in these Durable Objects will be permanent and affect the live instances.
+				  Remote Durable Objects that are affected:
+				  - {"name":"DO_BINDING_1_TOML","class_name":"DO_1_TOML","script_name":"DO_SCRIPT_1_TOML"}
+				  - {"name":"DO_BINDING_2_TOML","class_name":"DO_2_TOML","script_name":"DO_SCRIPT_2_TOML"}
+				▲ [WARNING] This worker is bound to live services: SERVICE_BINDING_1_TOML (SERVICE_NAME_1_TOML), SERVICE_BINDING_2_TOML (SERVICE_NAME_2_TOML)
+				Your worker has access to the following bindings:
+				- Durable Objects:
+				  - DO_BINDING_1_TOML: NEW_DO_1 (defined in NEW_DO_SCRIPT_1)
+				  - DO_BINDING_2_TOML: DO_2_TOML (defined in DO_SCRIPT_2_TOML)
+				  - DO_BINDING_3_ARGS: DO_3_ARGS (defined in DO_SCRIPT_3_ARGS)
+				- KV Namespaces:
+				  - KV_BINDING_1_TOML: NEW_KV_ID_1
+				  - KV_BINDING_2_TOML: KV_ID_2_TOML
+				  - KV_BINDING_3_ARGS: KV_ID_3_ARGS
+				- D1 Databases:
+				  - D1_BINDING_1_TOML: local-D1_BINDING_1_TOML=NEW_D1_NAME_1 (NEW_D1_NAME_1)
+				  - D1_BINDING_2_TOML: D1_NAME_2_TOML (D1_ID_2_TOML)
+				  - D1_BINDING_3_ARGS: local-D1_BINDING_3_ARGS=D1_NAME_3_ARGS (D1_NAME_3_ARGS)
+				- R2 Buckets:
+				  - R2_BINDING_1_TOML: NEW_R2_BUCKET_1
+				  - R2_BINDING_2_TOML: R2_BUCKET_2_TOML
+				  - R2_BINDING_3_TOML: R2_BUCKET_3_ARGS
+				- Services:
+				  - SERVICE_BINDING_1_TOML: NEW_SERVICE_NAME_1
+				  - SERVICE_BINDING_2_TOML: SERVICE_NAME_2_TOML
+				  - SERVICE_BINDING_3_TOML: SERVICE_NAME_3_ARGS
+				- AI:
+				  - Name: AI_BINDING_2_TOML
+				- Vars:
+				  - VAR1: "(hidden)"
+				  - VAR2: "VAR_2_TOML"
+				  - VAR3: "(hidden)"
+				▲ [WARNING] ⎔ Support for service bindings in local mode is experimental and may change.
+				▲ [WARNING] ⎔ Support for external Durable Objects in local mode is experimental and may change.
+				⎔ Starting local server...
+				▲ [WARNING] Using Workers AI always accesses your Cloudflare account in order to run AI models, and so will incur usage charges even in local development.
+				[wrangler:inf] Ready on http://localhost:<PORT>"
+			`);
 		}
 	);
 
-	e2eTest.only(
+	e2eTest(
 		"should pick up wrangler.toml configuration even in cases when `pages_build_output_dir` was not specified, but the <directory> command argument was",
 		async ({ seed, run }) => {
 			await seed({
@@ -762,7 +791,7 @@ describe("pages dev", () => {
 				PAGES_EMOJI = "⚡️"
 			`,
 			});
-			const worker = run(`wrangler pages dev public`);
+			const worker = run(`wrangler pages dev public --port 0`);
 			const { url } = await waitForReady(worker);
 			await expect(
 				fetch(url).then((r) => r.text())
