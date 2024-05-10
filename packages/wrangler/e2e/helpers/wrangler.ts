@@ -4,7 +4,6 @@ import { createWriteStream } from "node:fs";
 import rl from "node:readline";
 import { PassThrough } from "node:stream";
 import { ReadableStream } from "node:stream/web";
-import { expect } from "vitest";
 import { readUntil } from "./read-until";
 import type { ChildProcess } from "node:child_process";
 
@@ -42,9 +41,7 @@ export function runWrangler(
 	wranglerProcess.stderr.pipe(output);
 
 	const debugFile = createWriteStream(
-		encodeURIComponent(
-			`${expect.getState().currentTestName ?? ""}.${wranglerCommand}.e2e.log`
-		)
+		encodeURIComponent(`${Date.now()}.e2e.log`)
 	);
 	output.pipe(debugFile);
 	const exitPromise = events.once(wranglerProcess, "exit");
@@ -56,7 +53,9 @@ export function runWrangler(
 			const lineInterface = rl.createInterface(output);
 			lineInterface.on("line", (line) => {
 				lineBuffer.push(line);
-				controller.enqueue(line);
+				try {
+					controller.enqueue(line);
+				} catch {}
 			});
 			void exitPromise.then(() => controller.close());
 		},
@@ -69,6 +68,10 @@ export function runWrangler(
 			timeout?: number
 		): Promise<RegExpMatchArray> {
 			return readUntil(lines, regexp, timeout);
+		},
+		// Return a snapshot of the output so far
+		get output() {
+			return lineBuffer.join("\n");
 		},
 		// This is a custom thenable—awaiting `runWrangler` will wait for the process to exit
 		async then(
