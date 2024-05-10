@@ -269,7 +269,7 @@ describe("pages dev", () => {
 		);
 	});
 
-	e2eTest.only(
+	e2eTest(
 		"should modify worker during dev session (_worker)",
 		async ({ run, seed }) => {
 			await seed({
@@ -304,7 +304,7 @@ describe("pages dev", () => {
 		}
 	);
 
-	e2eTest.only(
+	e2eTest(
 		"should modify worker during dev session (Functions)",
 		async ({ run, seed }) => {
 			const worker = run("wrangler pages dev .");
@@ -337,7 +337,7 @@ describe("pages dev", () => {
 		}
 	);
 
-	e2eTest.only(
+	e2eTest(
 		"should recover from syntax error during dev session (_worker)",
 		async ({ run, seed }) => {
 			const worker = run("wrangler pages dev .");
@@ -386,7 +386,7 @@ describe("pages dev", () => {
 		}
 	);
 
-	e2eTest.only(
+	e2eTest(
 		"should recover from syntax error during dev session (Functions)",
 		async ({ run, seed }) => {
 			const worker = run("wrangler pages dev .");
