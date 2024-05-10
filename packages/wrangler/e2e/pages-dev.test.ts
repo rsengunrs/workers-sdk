@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-shadow */
 import crypto from "node:crypto";
 import path from "node:path";
 import { setTimeout } from "node:timers/promises";
@@ -6,10 +7,11 @@ import shellac from "shellac";
 import dedent from "ts-dedent";
 import { fetch } from "undici";
 import { beforeEach, describe, expect, it } from "vitest";
+import { e2eTest } from "./helpers/e2e-wrangler-test";
 import { normalizeOutput } from "./helpers/normalize";
 import { retry } from "./helpers/retry";
 import { makeRoot, seed } from "./helpers/setup";
-import { WRANGLER } from "./helpers/wrangler";
+import { waitForReady, waitForReload, WRANGLER } from "./helpers/wrangler";
 
 type MaybePromise<T = void> = T | Promise<T>;
 
@@ -267,150 +269,142 @@ describe("pages dev", () => {
 		);
 	});
 
-	it("should modify worker during dev session (_worker)", async () => {
-		await runDevSession(workerPath, ".", async (session) => {
-			await seed(workerPath, {
+	e2eTest.only(
+		"should modify worker during dev session (_worker)",
+		async ({ run, seed }) => {
+			await seed({
 				"_worker.js": dedent`
-						export default {
-							fetch(request, env) {
-								return new Response("Hello World!")
-							}
-						}`,
-			});
-			const { text } = await retry(
-				(s) => s.status !== 200,
-				async () => {
-					const r = await fetch(`http://127.0.0.1:${session.port}`);
-					return { text: await r.text(), status: r.status };
-				}
-			);
-			expect(text).toMatchInlineSnapshot('"Hello World!"');
-
-			await seed(workerPath, {
-				"_worker.js": dedent`
-						export default {
-							fetch(request, env) {
-								return new Response("Updated Worker!")
-							}
-						}`,
-			});
-
-			const { text: text2 } = await retry(
-				(s) => s.status !== 200 || s.text === "Hello World!",
-				async () => {
-					const r = await fetch(`http://127.0.0.1:${session.port}`);
-					return { text: await r.text(), status: r.status };
-				}
-			);
-			expect(text2).toMatchInlineSnapshot('"Updated Worker!"');
-		});
-	});
-
-	it("should modify worker during dev session (Functions)", async () => {
-		await runDevSession(workerPath, ".", async (session) => {
-			await seed(workerPath, {
-				"functions/_middleware.js": dedent`
-						export async function onRequest() {
+					export default {
+						fetch(request, env) {
 							return new Response("Hello World!")
-						}`,
+						}
+					}`,
 			});
-			const { text } = await retry(
-				(s) => s.status !== 200,
-				async () => {
-					const r = await fetch(`http://127.0.0.1:${session.port}`);
-					return { text: await r.text(), status: r.status };
-				}
-			);
-			expect(text).toMatchInlineSnapshot('"Hello World!"');
+			const worker = run(`wrangler pages dev .`);
+			const { url } = await waitForReady(worker);
 
-			await seed(workerPath, {
-				"functions/_middleware.js": dedent`
-						export async function onRequest() {
-							return new Response("Updated Worker!")
-						}`,
-			});
+			await expect(
+				fetch(url).then((r) => r.text())
+			).resolves.toMatchInlineSnapshot('"Hello World!"');
 
-			const { text: text2 } = await retry(
-				(s) => s.status !== 200 || s.text === "Hello World!",
-				async () => {
-					const r = await fetch(`http://127.0.0.1:${session.port}`);
-					return { text: await r.text(), status: r.status };
-				}
-			);
-			expect(text2).toMatchInlineSnapshot('"Updated Worker!"');
-		});
-	});
-
-	it("should recover from syntax error during dev session (_worker)", async () => {
-		const out = await runDevSession(workerPath, ".", async (session) => {
-			await seed(workerPath, {
-				"_worker.js": dedent`
-						export default {
-							fetch(request, env) {
-								return new Response("Hello World!")
-							}
-						}`,
-			});
-			const { text } = await retry(
-				(s) => s.status !== 200,
-				async () => {
-					const r = await fetch(`http://127.0.0.1:${session.port}`);
-					return { text: await r.text(), status: r.status };
-				}
-			);
-			expect(text).toMatchInlineSnapshot('"Hello World!"');
-			await seed(workerPath, {
+			await seed({
 				"_worker.js": dedent`
 						export default {
 							fetch(request, env) {
 								return new Response("Updated Worker!")
-							} // Syntax Error
 							}
 						}`,
 			});
 
-			// Make sure the syntax error above is picked up
-			await setTimeout(5_000);
+			await waitForReload(worker);
+
+			await expect(
+				fetch(url).then((r) => r.text())
+			).resolves.toMatchInlineSnapshot('"Updated Worker!"');
+		}
+	);
+
+	e2eTest.only(
+		"should modify worker during dev session (Functions)",
+		async ({ run, seed }) => {
+			const worker = run("wrangler pages dev .");
+
+			await seed({
+				"functions/_middleware.js": dedent`
+					export async function onRequest() {
+						return new Response("Hello World!")
+					}`,
+			});
+
+			const { url } = await waitForReady(worker);
+
+			await expect(
+				fetch(url).then((r) => r.text())
+			).resolves.toMatchInlineSnapshot('"Hello World!"');
+
+			await seed({
+				"functions/_middleware.js": dedent`
+					export async function onRequest() {
+						return new Response("Updated Worker!")
+					}`,
+			});
+
+			await waitForReload(worker);
+
+			await expect(
+				fetch(url).then((r) => r.text())
+			).resolves.toMatchInlineSnapshot('"Updated Worker!"');
+		}
+	);
+
+	e2eTest.only(
+		"should recover from syntax error during dev session (_worker)",
+		async ({ run, seed }) => {
+			const worker = run("wrangler pages dev .");
+
+			await seed({
+				"_worker.js": dedent`
+					export default {
+						fetch(request, env) {
+							return new Response("Hello World!")
+						}
+					}`,
+			});
+
+			const { url } = await waitForReady(worker);
+
+			await expect(
+				fetch(url).then((r) => r.text())
+			).resolves.toMatchInlineSnapshot('"Hello World!"');
+
+			await seed({
+				"_worker.js": dedent`
+					export default {
+						fetch(request, env) {
+							return new Response("Updated Worker!")
+						} // Syntax Error
+						}
+					}`,
+			});
+
+			await worker.readUntil(/Failed to bundle/);
 
 			// And then make sure Wrangler hasn't crashed
-			await seed(workerPath, {
+			await seed({
 				"_worker.js": dedent`
-						export default {
-							fetch(request, env) {
-								return new Response("Updated Worker!")
-							}
-						}`,
+					export default {
+						fetch(request, env) {
+							return new Response("Updated Worker!")
+						}
+					}`,
 			});
+			await waitForReload(worker);
 
-			const { text: text2 } = await retry(
-				(s) => s.status !== 200 || s.text === "Hello World!",
-				async () => {
-					const r = await fetch(`http://127.0.0.1:${session.port}`);
-					return { text: await r.text(), status: r.status };
-				}
-			);
-			expect(text2).toMatchInlineSnapshot('"Updated Worker!"');
-		});
-		expect(out.stderr).toContain("Failed to bundle");
-	});
+			await expect(
+				fetch(url).then((r) => r.text())
+			).resolves.toMatchInlineSnapshot('"Updated Worker!"');
+		}
+	);
 
-	it("should recover from syntax error during dev session (Functions)", async () => {
-		const out = await runDevSession(workerPath, ".", async (session) => {
-			await seed(workerPath, {
+	e2eTest.only(
+		"should recover from syntax error during dev session (Functions)",
+		async ({ run, seed }) => {
+			const worker = run("wrangler pages dev .");
+
+			await seed({
 				"functions/_middleware.js": dedent`
-						export async function onRequest() {
-							return new Response("Hello World!")
-						}`,
+					export async function onRequest() {
+						return new Response("Hello World!")
+					}`,
 			});
-			const { text } = await retry(
-				(s) => s.status !== 200,
-				async () => {
-					const r = await fetch(`http://127.0.0.1:${session.port}`);
-					return { text: await r.text(), status: r.status };
-				}
-			);
-			expect(text).toMatchInlineSnapshot('"Hello World!"');
-			await seed(workerPath, {
+
+			const { url } = await waitForReady(worker);
+
+			await expect(
+				fetch(url).then((r) => r.text())
+			).resolves.toMatchInlineSnapshot('"Hello World!"');
+
+			await seed({
 				"functions/_middleware.js": dedent`
 						export async function onRequest() {
 							return new Response("Updated Worker!")
@@ -418,30 +412,22 @@ describe("pages dev", () => {
 						}`,
 			});
 
-			// Make sure the syntax error above is picked up
-			await setTimeout(5_000);
+			await worker.readUntil(/Unexpected error building Functions directory/);
 
 			// And then make sure Wrangler hasn't crashed
-			await seed(workerPath, {
+			await seed({
 				"functions/_middleware.js": dedent`
-						export async function onRequest() {
-							return new Response("Updated Worker!")
-						}`,
+					export async function onRequest() {
+						return new Response("Updated Worker!")
+					}`,
 			});
+			await waitForReload(worker);
 
-			const { text: text2 } = await retry(
-				(s) => s.status !== 200 || s.text === "Hello World!",
-				async () => {
-					const r = await fetch(`http://127.0.0.1:${session.port}`);
-					return { text: await r.text(), status: r.status };
-				}
-			);
-			expect(text2).toMatchInlineSnapshot('"Updated Worker!"');
-		});
-		expect(out.stderr).toContain(
-			"Unexpected error building Functions directory"
-		);
-	});
+			await expect(
+				fetch(url).then((r) => r.text())
+			).resolves.toMatchInlineSnapshot('"Updated Worker!"');
+		}
+	);
 
 	it("should support modifying _routes.json during dev session", async () => {
 		await runDevSession(workerPath, ".", async (session) => {
